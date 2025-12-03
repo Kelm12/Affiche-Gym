@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gym TV Normandie - FR</title>
+    <title>Gym TV Normandie - LIVE</title>
     <style>
         /* BASE */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
@@ -12,19 +12,22 @@
         
         #bg-image { 
             width: 100%; height: 100%; 
-            background-size: cover; background-position: center; 
+            background-size: cover; 
+            background-position: center; 
             display: none; 
         }
         
         #bg-video { 
             width: 100%; height: 100%; 
-            object-fit: cover; 
+            /* 'contain' permet d'afficher toute la vidéo verticale sans couper le haut/bas */
+            /* Si tu préfères que ça remplisse tout l'écran (zoomé), remplace 'contain' par 'cover' */
+            object-fit: contain; 
             display: none; 
         }
 
         /* TEXTES */
         #main-title {
-            position: absolute; top: 10%; left: 0; width: 100%;
+            position: absolute; top: 5%; left: 0; width: 100%;
             text-align: center; color: white; 
             font-size: 5vw; font-weight: bold;
             text-shadow: 3px 3px 8px #000;
@@ -47,12 +50,11 @@
 
         @keyframes scroll { from { left: 100%; } to { left: -100%; } }
 
-        /* ÉCRAN DE DEBUG (Apparaît seulement si erreur) */
+        /* DEBUG SCREEN (Caché si tout va bien) */
         #debug-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: white; color: red; z-index: 9999;
             padding: 40px; font-size: 24px; display: none;
-            overflow-y: auto;
         }
     </style>
 </head>
@@ -60,116 +62,82 @@
 
     <div id="media-container">
         <div id="bg-image"></div>
-        <video id="bg-video" muted playsinline></video>
+        <video id="bg-video" muted playsinline loop></video>
     </div>
 
     <div id="main-title">Chargement...</div>
     
     <div id="footer">
-        <div id="scrolling-text">Mise à jour des données en cours...</div>
+        <div id="scrolling-text">Actualités Gym Normandie...</div>
     </div>
 
     <div id="debug-screen"></div>
 
 <script>
     // =================================================================
-    // TON LIEN EST DÉJÀ MIS ICI :
+    // TON LIEN EST ICI (Ne touche plus à rien !)
     var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv';
     // =================================================================
 
     var slides = [];
     var currentIndex = 0;
 
-    // Fonction de démarrage
     function init() {
-        logDebug("Démarrage du système...");
         loadData();
     }
 
-    // Chargement des données
     function loadData() {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
-                    logDebug("Fichier récupéré avec succès.");
                     parseCSV(xhr.responseText);
                 } else {
-                    logDebug("Erreur de connexion (Code " + xhr.status + "). Nouvelle tentative dans 10s.");
+                    // En cas d'erreur réseau, on réessaie dans 10 secondes
                     setTimeout(loadData, 10000);
                 }
             }
         };
-        // Ajout de l'heure pour éviter que la télé garde le vieux fichier en mémoire
+        // Ajout de l'heure pour forcer le rafraîchissement (anti-cache)
         xhr.open("GET", SHEET_URL + "&t=" + new Date().getTime(), true);
         xhr.send();
     }
 
-    // Lecture intelligente du CSV (Spécial France)
     function parseCSV(text) {
         var rows = text.split('\n');
         slides = [];
 
-        if (rows.length < 2) {
-            showFatalError("Le fichier Google Sheet semble vide (moins de 2 lignes).");
-            return;
-        }
+        // Détection automatique du séparateur (Virgule ou Point-Virgule)
+        var separator = (rows[0].indexOf(';') !== -1) ? ';' : ',';
 
-        // DÉTECTION DU SÉPARATEUR (Virgule ou Point-Virgule ?)
-        var firstLine = rows[0]; // Ligne des titres
-        var separator = ','; // Par défaut
-        if (firstLine.indexOf(';') !== -1) {
-            separator = ';';
-            logDebug("Mode détecté : FRANCE (Point-virgule)");
-        } else {
-            logDebug("Mode détecté : STANDARD (Virgule)");
-        }
-
-        // Boucle sur les lignes (on saute la ligne 0 qui est le titre)
+        // Lecture ligne par ligne (sauf la ligne 0 qui est le titre)
         for (var i = 1; i < rows.length; i++) {
-            var row = rows[i];
-            var cols = row.split(separator);
-
-            // On vérifie qu'il y a assez de colonnes
+            var cols = rows[i].split(separator);
             if (cols.length >= 4) {
                 var url = clean(cols[0]);
                 var title = clean(cols[1]);
                 var text = clean(cols[2]);
                 var time = parseInt(clean(cols[3]));
 
-                // Vérification basique
+                // On garde la ligne seulement si l'URL est valide et le temps est un chiffre
                 if (url.length > 5 && !isNaN(time)) {
-                    slides.push({
-                        url: url,
-                        title: title,
-                        text: text,
-                        time: time * 1000
-                    });
+                    slides.push({ url: url, title: title, text: text, time: time * 1000 });
                 }
             }
         }
 
-        logDebug(slides.length + " slides valides trouvées.");
-
         if (slides.length > 0) {
-            // On cache le debug s'il était affiché
             document.getElementById('debug-screen').style.display = 'none';
             runSlideshow();
         } else {
-            showFatalError("Aucune ligne valide trouvée. <br>Vérifie :<br>1. Colonne Durée (que des chiffres)<br>2. Pas de virgules/point-virgules dans les textes.");
+            showFatalError("Tableau vide ou illisible. Vérifie ton Google Sheet.");
         }
     }
 
-    // Fonction de nettoyage des guillemets
-    function clean(str) {
-        if (!str) return "";
-        return str.replace(/"/g, '').trim();
-    }
+    function clean(str) { return str ? str.replace(/"/g, '').trim() : ""; }
 
-    // Moteur d'affichage
     function runSlideshow() {
         var slide = slides[currentIndex];
-        
         var imgDiv = document.getElementById('bg-image');
         var vidTag = document.getElementById('bg-video');
         
@@ -178,20 +146,26 @@
         var ticker = document.getElementById('scrolling-text');
         ticker.innerText = slide.text;
         
-        // Reset animation du texte défilant
+        // Reset animation texte
         ticker.style.animation = 'none';
-        ticker.offsetHeight; /* Trigger reflow */
+        ticker.offsetHeight; 
         ticker.style.animation = "scroll 15s linear infinite";
 
-        // --- GESTION IMAGE / VIDEO ---
-        // On regarde si l'URL contient .mp4 (minuscule ou majuscule)
+        // --- GESTION MEDIA ---
         if (slide.url.toLowerCase().indexOf('.mp4') !== -1) {
             // C'EST UNE VIDEO
             imgDiv.style.display = 'none';
             vidTag.style.display = 'block';
             vidTag.src = slide.url;
-            vidTag.muted = true; // OBLIGATOIRE
-            vidTag.play().catch(function(e) { logDebug("Erreur lecture vidéo: " + e); });
+            vidTag.muted = true;
+            
+            // Tentative de lecture
+            var playPromise = vidTag.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(function(error) {
+                    console.log("Erreur lecture vidéo auto : " + error);
+                });
+            }
         } else {
             // C'EST UNE IMAGE
             vidTag.pause();
@@ -211,17 +185,10 @@
         }
     }
 
-    // Fonctions de Debug (pour t'aider si ça plante)
-    function logDebug(msg) {
-        console.log(msg);
-        // Tu peux décommenter la ligne dessous pour voir les logs sur l'écran
-        // document.getElementById('debug-screen').innerHTML += "<p>" + msg + "</p>";
-    }
-
     function showFatalError(msg) {
         var d = document.getElementById('debug-screen');
         d.style.display = 'block';
-        d.innerHTML = "<h1>ERREUR CRITIQUE</h1><p>" + msg + "</p><p>Lien utilisé : " + SHEET_URL + "</p>";
+        d.innerHTML = "<h1>ERREUR</h1><p>" + msg + "</p>";
     }
 
     // Lancement
