@@ -2,28 +2,24 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gym TV Normandie - LITE</title>
+    <title>Gym TV Normandie - FR</title>
     <style>
-        /* RESET & BASE */
+        /* BASE */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
         
-        /* CONTENEUR MEDIA */
-        #media-container {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1; background: black;
+        /* COUCHES MEDIAS */
+        #media-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; background: black; }
+        
+        #bg-image { 
+            width: 100%; height: 100%; 
+            background-size: cover; background-position: center; 
+            display: none; 
         }
-
-        /* 1. LAYER IMAGE */
-        #bg-image {
-            width: 100%; height: 100%;
-            background-size: cover; background-position: center;
-            display: none;
-        }
-
-        /* 2. LAYER FICHIER MP4 */
-        #bg-video {
-            width: 100%; height: 100%;
-            object-fit: cover; display: none;
+        
+        #bg-video { 
+            width: 100%; height: 100%; 
+            object-fit: cover; 
+            display: none; 
         }
 
         /* TEXTES */
@@ -32,7 +28,7 @@
             text-align: center; color: white; 
             font-size: 5vw; font-weight: bold;
             text-shadow: 3px 3px 8px #000;
-            background: rgba(0,0,0,0.5); padding: 15px 0;
+            background: rgba(0,0,0,0.6); padding: 15px 0;
             z-index: 10;
         }
 
@@ -51,9 +47,12 @@
 
         @keyframes scroll { from { left: 100%; } to { left: -100%; } }
 
-        /* DEBUG */
-        #debug {
-            position: absolute; top:0; left:0; color: red; background: white; z-index: 9999; display: none; font-size: 20px; padding: 10px;
+        /* ÉCRAN DE DEBUG (Apparaît seulement si erreur) */
+        #debug-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; color: red; z-index: 9999;
+            padding: 40px; font-size: 24px; display: none;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -64,134 +63,168 @@
         <video id="bg-video" muted playsinline></video>
     </div>
 
-    <div id="main-title">Chargement Gym Normandie...</div>
+    <div id="main-title">Chargement...</div>
     
     <div id="footer">
-        <div id="scrolling-text">...</div>
+        <div id="scrolling-text">Mise à jour des données en cours...</div>
     </div>
-    
-    <div id="debug"></div>
+
+    <div id="debug-screen"></div>
 
 <script>
     // =================================================================
-    // ZONE DE CONFIGURATION
-    // =================================================================
-    
-    // 👇 COLLE TON LIEN CSV GOOGLE SHEET ICI 👇
-    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?output=csv'; 
-
+    // TON LIEN EST DÉJÀ MIS ICI :
+    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv';
     // =================================================================
 
     var slides = [];
     var currentIndex = 0;
 
+    // Fonction de démarrage
     function init() {
-        if (SHEET_URL.indexOf('https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?output=csv') !== -1) {
-            showError("ERREUR : Tu as oublié de coller le lien CSV dans le fichier index.html !");
-            return;
-        }
+        logDebug("Démarrage du système...");
         loadData();
     }
 
+    // Chargement des données
     function loadData() {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
                 if (xhr.status === 200) {
+                    logDebug("Fichier récupéré avec succès.");
                     parseCSV(xhr.responseText);
                 } else {
-                    setTimeout(loadData, 10000); // Réessaie dans 10s si erreur
+                    logDebug("Erreur de connexion (Code " + xhr.status + "). Nouvelle tentative dans 10s.");
+                    setTimeout(loadData, 10000);
                 }
             }
         };
-        // Anti-cache pour forcer la mise à jour
-        xhr.open("GET", SHEET_URL + "?t=" + new Date().getTime(), true);
+        // Ajout de l'heure pour éviter que la télé garde le vieux fichier en mémoire
+        xhr.open("GET", SHEET_URL + "&t=" + new Date().getTime(), true);
         xhr.send();
     }
 
+    // Lecture intelligente du CSV (Spécial France)
     function parseCSV(text) {
         var rows = text.split('\n');
         slides = [];
-        
+
+        if (rows.length < 2) {
+            showFatalError("Le fichier Google Sheet semble vide (moins de 2 lignes).");
+            return;
+        }
+
+        // DÉTECTION DU SÉPARATEUR (Virgule ou Point-Virgule ?)
+        var firstLine = rows[0]; // Ligne des titres
+        var separator = ','; // Par défaut
+        if (firstLine.indexOf(';') !== -1) {
+            separator = ';';
+            logDebug("Mode détecté : FRANCE (Point-virgule)");
+        } else {
+            logDebug("Mode détecté : STANDARD (Virgule)");
+        }
+
+        // Boucle sur les lignes (on saute la ligne 0 qui est le titre)
         for (var i = 1; i < rows.length; i++) {
             var row = rows[i];
-            var cols = row.split(',');
-            
-            if (cols.length >= 4) {
-                // Nettoyage des données
-                var urlClean = cols[0].replace(/"/g, '').trim();
-                var titleClean = cols[1].replace(/"/g, '').trim();
-                var textClean = cols[2].replace(/"/g, '').trim();
-                var timeClean = parseInt(cols[3]);
+            var cols = row.split(separator);
 
-                if (urlClean.length > 5 && !isNaN(timeClean)) {
+            // On vérifie qu'il y a assez de colonnes
+            if (cols.length >= 4) {
+                var url = clean(cols[0]);
+                var title = clean(cols[1]);
+                var text = clean(cols[2]);
+                var time = parseInt(clean(cols[3]));
+
+                // Vérification basique
+                if (url.length > 5 && !isNaN(time)) {
                     slides.push({
-                        url: urlClean,
-                        title: titleClean,
-                        text: textClean,
-                        time: timeClean * 1000
+                        url: url,
+                        title: title,
+                        text: text,
+                        time: time * 1000
                     });
                 }
             }
         }
 
+        logDebug(slides.length + " slides valides trouvées.");
+
         if (slides.length > 0) {
+            // On cache le debug s'il était affiché
+            document.getElementById('debug-screen').style.display = 'none';
             runSlideshow();
         } else {
-            showError("Tableau vide ou erreur de virgules.");
+            showFatalError("Aucune ligne valide trouvée. <br>Vérifie :<br>1. Colonne Durée (que des chiffres)<br>2. Pas de virgules/point-virgules dans les textes.");
         }
     }
 
+    // Fonction de nettoyage des guillemets
+    function clean(str) {
+        if (!str) return "";
+        return str.replace(/"/g, '').trim();
+    }
+
+    // Moteur d'affichage
     function runSlideshow() {
         var slide = slides[currentIndex];
         
         var imgDiv = document.getElementById('bg-image');
         var vidTag = document.getElementById('bg-video');
         
-        // 1. Mise à jour Textes
+        // --- MISE A JOUR TEXTES ---
         document.getElementById('main-title').innerText = slide.title;
         var ticker = document.getElementById('scrolling-text');
         ticker.innerText = slide.text;
         
-        // Reset animation
+        // Reset animation du texte défilant
         ticker.style.animation = 'none';
-        ticker.offsetHeight; 
+        ticker.offsetHeight; /* Trigger reflow */
         ticker.style.animation = "scroll 15s linear infinite";
 
-        // 2. Gestion Média (Simple : MP4 ou Image)
-        if (slide.url.indexOf('.mp4') !== -1) {
-            // --- C'EST UNE VIDÉO ---
+        // --- GESTION IMAGE / VIDEO ---
+        // On regarde si l'URL contient .mp4 (minuscule ou majuscule)
+        if (slide.url.toLowerCase().indexOf('.mp4') !== -1) {
+            // C'EST UNE VIDEO
             imgDiv.style.display = 'none';
             vidTag.style.display = 'block';
             vidTag.src = slide.url;
-            vidTag.muted = true; // Obligatoire
-            vidTag.play().catch(function(e){ console.log("Erreur lecture: ", e); });
+            vidTag.muted = true; // OBLIGATOIRE
+            vidTag.play().catch(function(e) { logDebug("Erreur lecture vidéo: " + e); });
         } else {
-            // --- C'EST UNE IMAGE ---
+            // C'EST UNE IMAGE
             vidTag.pause();
             vidTag.style.display = 'none';
             imgDiv.style.display = 'block';
             imgDiv.style.backgroundImage = "url('" + slide.url + "')";
         }
 
-        // 3. Boucle
+        // --- PREPARATION SUIVANT ---
         currentIndex++;
         if (currentIndex >= slides.length) {
             currentIndex = 0;
-            // On recharge le CSV à la fin de la boucle
+            // Fin de boucle : on recharge les données
             setTimeout(function() { loadData(); }, slide.time);
         } else {
             setTimeout(runSlideshow, slide.time);
         }
     }
 
-    function showError(msg) {
-        var d = document.getElementById('debug');
-        d.style.display = 'block';
-        d.innerHTML = msg;
+    // Fonctions de Debug (pour t'aider si ça plante)
+    function logDebug(msg) {
+        console.log(msg);
+        // Tu peux décommenter la ligne dessous pour voir les logs sur l'écran
+        // document.getElementById('debug-screen').innerHTML += "<p>" + msg + "</p>";
     }
 
-    // Démarrage
+    function showFatalError(msg) {
+        var d = document.getElementById('debug-screen');
+        d.style.display = 'block';
+        d.innerHTML = "<h1>ERREUR CRITIQUE</h1><p>" + msg + "</p><p>Lien utilisé : " + SHEET_URL + "</p>";
+    }
+
+    // Lancement
     init();
 
 </script>
