@@ -2,138 +2,109 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Affichage Dynamique Gym</title>
+    <title>Debug Mode - Gym</title>
     <style>
-        /* RESET & BASE */
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-
-        /* IMAGE DE FOND */
-        #background {
-            width: 100%; height: 100%;
-            background-size: cover; background-position: center;
-            transition: opacity 1s ease-in-out; /* Effet fondu */
-        }
-
-        /* TITRE PRINCIPAL (Au centre ou un peu en haut) */
-        #main-title {
-            position: absolute; top: 20%; left: 0; width: 100%;
-            text-align: center;
-            color: white; font-size: 5vw; font-weight: bold;
-            text-shadow: 2px 2px 10px rgba(0,0,0,0.8);
-            background: rgba(0, 0, 0, 0.4); /* Fond sombre semi-transparent pour lisibilité */
-            padding: 20px 0;
-        }
-
-        /* BANDEAU TYPE "RATP/SNCF" (En bas) */
-        .ticker-wrap {
-            position: absolute; bottom: 0; width: 100%; height: 80px;
-            background-color: #D32F2F; /* ROUGE GYM - Change cette couleur si tu veux */
-            overflow: hidden; box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
-            display: flex; align-items: center;
-        }
-
-        .ticker-item {
-            display: inline-block;
-            white-space: nowrap;
-            padding-left: 100%; /* Commence hors écran à droite */
-            animation: ticker 15s linear infinite; /* Vitesse du défilement */
-            color: white; font-size: 2.5rem; font-weight: bold;
-        }
-
-        @keyframes ticker {
-            0% { transform: translate3d(0, 0, 0); }
-            100% { transform: translate3d(-100%, 0, 0); }
-        }
-        
-        /* Pour cacher le curseur de la souris */
-        body { cursor: none; }
+        body { background: #000; color: white; font-family: sans-serif; padding: 20px; }
+        #debug-console { color: red; font-size: 20px; background: #222; padding: 20px; border: 1px solid red; }
+        #background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background-size: cover; background-position: center; }
+        #main-title { position: absolute; top: 20%; width: 100%; text-align: center; font-size: 4em; text-shadow: 2px 2px 4px #000; }
+        .ticker-wrap { position: absolute; bottom: 0; width: 100%; height: 60px; background: #D32F2F; overflow: hidden; }
+        .ticker-item { display: inline-block; padding-left: 100%; animation: ticker 15s linear infinite; font-size: 2em; line-height: 60px; white-space: nowrap; }
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
     </style>
 </head>
 <body>
 
-    <div id="background"></div>
+<div id="background"></div>
+<div id="main-title">Chargement...</div>
+<div class="ticker-wrap"><div class="ticker-item" id="ticker"></div></div>
 
-    <div id="main-title">Chargement...</div>
-
-    <div class="ticker-wrap">
-        <div class="ticker-item" id="scrolling-text">Bienvenue au Comité de Gymnastique de Normandie</div>
-    </div>
+<div id="debug-console" style="display:none;"></div>
 
 <script>
-    // --- CONFIGURATION ---
-    // REMPLACE CECI PAR TON LIEN GOOGLE SHEET PUBLIÉ EN CSV
+    // --- COLLE TON LIEN CSV JUSTE EN DESSOUS ---
     const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv'; 
+    // ------------------------------------------
 
-    let slides = [];
-    let currentIndex = 0;
+    function logError(msg) {
+        const consoleDiv = document.getElementById('debug-console');
+        consoleDiv.style.display = 'block';
+        consoleDiv.innerHTML += "<p>" + msg + "</p>";
+    }
 
-    async function fetchData() {
+    async function start() {
         try {
+            // 1. Test du lien
+            if (SHEET_URL.includes('TON_LIEN_CSV')) {
+                throw new Error("Tu n'as pas remplacé le lien SHEET_URL dans le code !");
+            }
+
             const response = await fetch(SHEET_URL);
+            
+            // 2. Test de la connexion
+            if (!response.ok) {
+                throw new Error("Impossible d'accéder au fichier Google (Erreur " + response.status + "). Vérifie que tu as bien fait 'Publier sur le web'.");
+            }
+
             const data = await response.text();
             
-            // Découpage du CSV (Attention aux virgules dans le texte !)
-            // Astuce : On saute la ligne 1 (en-têtes)
-            const rows = data.split('\n').slice(1);
+            // 3. Test du contenu
+            if (data.includes("<!DOCTYPE html>") || data.includes("<html")) {
+                throw new Error("Le lien renvoie une page web et pas un CSV. Vérifie que tu as bien choisi format CSV dans Google Sheets.");
+            }
+
+            const rows = data.split('\n').slice(1); // Enlève la ligne de titre
             
-            slides = rows.map(row => {
-                // On utilise une expression régulière complexe pour gérer les virgules DANS les textes
-                // Si c'est trop compliqué, évite juste les virgules dans ton Google Sheet pour l'instant
-                const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            if (rows.length === 0) {
+                throw new Error("Le fichier CSV semble vide.");
+            }
+
+            // Parsing simple (Attention aux virgules !)
+            let slides = rows.map((row, index) => {
+                // On essaie de séparer par virgule
+                const cols = row.split(',');
+                if (cols.length < 4) return null; // Ligne invalide
                 
-                // Nettoyage des guillemets éventuels créés par Google Sheet
-                const clean = (txt) => txt ? txt.replace(/^"|"$/g, '').trim() : "";
-
                 return {
-                    img: clean(cols[0]),
-                    title: clean(cols[1]),
-                    ticker: clean(cols[2]),
-                    time: parseInt(clean(cols[3])) * 1000 // Conversion en millisecondes
+                    img: cols[0].trim(),
+                    title: cols[1].trim(),
+                    text: cols[2].trim(),
+                    time: parseInt(cols[3]) * 1000
                 };
-            }).filter(slide => slide.img && slide.time); // On garde que les lignes valides
+            }).filter(s => s !== null);
 
-            if(slides.length > 0) updateDisplay();
+            if (slides.length === 0) {
+                throw new Error("Aucune ligne valide trouvée. Vérifie tes virgules !");
+            }
 
-        } catch (error) {
-            console.error("Erreur de chargement:", error);
+            // Si tout est OK, on lance l'affichage
+            document.getElementById('debug-console').style.display = 'none';
+            let currentIndex = 0;
+
+            function showSlide() {
+                const s = slides[currentIndex];
+                document.getElementById('background').style.backgroundImage = `url(${s.img})`;
+                document.getElementById('main-title').innerText = s.title;
+                
+                const ticker = document.getElementById('ticker');
+                ticker.innerText = s.text;
+                // Reset animation
+                ticker.style.animation = 'none';
+                ticker.offsetHeight; 
+                ticker.style.animation = null;
+
+                currentIndex = (currentIndex + 1) % slides.length;
+                setTimeout(showSlide, s.time || 5000);
+            }
+            showSlide();
+
+        } catch (err) {
+            document.getElementById('main-title').innerText = "ERREUR";
+            logError("❌ " + err.message);
         }
     }
 
-    function updateDisplay() {
-        const slide = slides[currentIndex];
-        
-        // Mise à jour de l'image
-        document.getElementById('background').style.backgroundImage = `url('${slide.img}')`;
-        
-        // Mise à jour du titre
-        document.getElementById('main-title').innerText = slide.title;
-        
-        // Mise à jour du texte défilant
-        // Astuce : on relance l'animation CSS pour qu'elle reparte du début
-        const ticker = document.getElementById('scrolling-text');
-        ticker.innerText = slide.ticker;
-        ticker.style.animation = 'none';
-        ticker.offsetHeight; /* Trigger reflow */
-        ticker.style.animation = null; 
-
-        // Préparation de la prochaine slide
-        currentIndex = (currentIndex + 1) % slides.length;
-        
-        // Si on a fait le tour, on recharge les données pour voir s'il y a des nouveautés
-        if (currentIndex === 0) {
-            fetchData(); // On recharge silencieusement
-            setTimeout(updateDisplay, slide.time);
-        } else {
-            setTimeout(updateDisplay, slide.time);
-        }
-    }
-
-    // Lancement
-    fetchData();
-    
-    // Rafraîchissement de sécurité toutes les 5 minutes (au cas où le Wi-Fi saute)
-    setInterval(fetchData, 300000);
-
+    start();
 </script>
 </body>
 </html>
