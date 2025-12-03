@@ -2,157 +2,102 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gym TV - Mode Compatible</title>
+    <title>Test Affichage</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        body { margin: 0; background: black; font-family: sans-serif; overflow: hidden; }
         
-        /* IMAGE DE FOND */
-        #background {
+        /* L'image qui prend tout l'écran */
+        #bg-image {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-size: cover; background-position: center;
-            background-repeat: no-repeat;
-            transition: opacity 1s; /* Animation simple */
+            z-index: 1;
         }
 
-        /* TITRE */
-        #main-title {
-            position: absolute; top: 20%; left: 0; width: 100%;
-            text-align: center; color: white; 
-            font-size: 60px; /* Taille fixe pour éviter les bugs TV */
-            font-weight: bold;
-            text-shadow: 3px 3px 5px #000;
-            background: rgba(0,0,0,0.5); padding: 20px 0;
+        /* Le titre au milieu */
+        #title {
+            position: absolute; top: 30%; width: 100%; text-align: center;
+            color: white; font-size: 5vw; font-weight: bold;
+            text-shadow: 2px 2px 4px black; z-index: 2;
+            background: rgba(0,0,0,0.3); padding: 20px 0;
         }
 
-        /* BANDEAU DEFILANT */
-        .ticker-wrap {
-            position: absolute; bottom: 0; width: 100%; height: 80px;
-            background-color: #D32F2F; overflow: hidden;
+        /* Le bandeau rouge en bas */
+        #footer {
+            position: fixed; bottom: 0; width: 100%; height: 80px;
+            background: #D32F2F; z-index: 3; overflow: hidden;
             border-top: 2px solid white;
         }
-        .ticker-item {
-            position: absolute; top: 15px;
-            white-space: nowrap;
+
+        /* Le texte qui défile */
+        #scrolling-text {
+            position: absolute; top: 15px; white-space: nowrap;
             color: white; font-size: 40px; font-weight: bold;
-            /* Animation compatible vieux navigateurs */
-            -webkit-animation: ticker 20s linear infinite;
-            animation: ticker 20s linear infinite;
-            left: 100%; /* Départ hors écran */
+            left: 100%; /* Départ à droite */
+            animation: scroll 15s linear infinite;
         }
 
-        /* Animation standard et Webkit (pour vieilles TV) */
-        @-webkit-keyframes ticker { 0% { -webkit-transform: translate3d(0, 0, 0); left: 100%; } 100% { -webkit-transform: translate3d(-100%, 0, 0); left: -100%; } }
-        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); left: 100%; } 100% { transform: translate3d(-100%, 0, 0); left: -150%; } }
+        @keyframes scroll {
+            from { transform: translateX(0); left: 100%; }
+            to { transform: translateX(-100%); left: 0; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="background"></div>
-    <div id="main-title">Chargement...</div>
-    <div class="ticker-wrap">
-        <div class="ticker-item" id="scrolling-text">...</div>
+    <div id="bg-image"></div>
+    <div id="title">Chargement...</div>
+    <div id="footer">
+        <div id="scrolling-text">Test du système...</div>
     </div>
-    
-    <div id="error-msg" style="color:red; background:white; font-size:20px; position:absolute; top:0; z-index:999; display:none;"></div>
 
 <script>
-    // --- METS TON LIEN CSV ICI ---
-    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv'; 
-    // -----------------------------
-
-    var slides = [];
-    var currentIndex = 0;
-
-    // Fonction "Vieux Mode" pour charger les données (remplace fetch)
-    function loadData() {
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200) {
-                    parseData(xhr.responseText);
-                } else {
-                    showError("Erreur chargement: " + xhr.status);
-                }
-            }
-        };
-        xhr.open("GET", SHEET_URL + "?t=" + new Date().getTime(), true); // Anti-cache automatique
-        xhr.send();
-    }
-
-    function parseData(textData) {
-        try {
-            var rows = textData.split('\n');
-            slides = []; // Reset
-            
-            // On commence à i=1 pour sauter le titre
-            for (var i = 1; i < rows.length; i++) {
-                var row = rows[i];
-                // Séparation simple par virgule
-                var cols = row.split(',');
-                
-                if (cols.length >= 4) {
-                    var imgClean = cols[0].replace(/"/g, '').trim();
-                    var titleClean = cols[1].replace(/"/g, '').trim();
-                    var textClean = cols[2].replace(/"/g, '').trim();
-                    var timeClean = parseInt(cols[3]);
-
-                    if (imgClean && !isNaN(timeClean)) {
-                        slides.push({
-                            img: imgClean,
-                            title: titleClean,
-                            text: textClean,
-                            time: timeClean * 1000
-                        });
-                    }
-                }
-            }
-
-            if (slides.length > 0) {
-                runSlideshow();
-            } else {
-                showError("Tableau vide ou mal formaté");
-            }
-        } catch (e) {
-            showError("Erreur lecture: " + e.message);
+    // --- DONNÉES DE TEST INTÉGRÉES (Pas de Google Sheet pour l'instant) ---
+    var demoSlides = [
+        {
+            img: "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=1080",
+            title: "TEST IMAGE 1",
+            text: "Ceci est un test pour vérifier que l'écran fonctionne correctement."
+        },
+        {
+            img: "https://images.unsplash.com/photo-1551847677-dc82d764e1eb?auto=format&fit=crop&w=1080",
+            title: "TEST IMAGE 2",
+            text: "Si vous voyez ce texte défiler, c'est gagné !"
+        },
+        {
+            img: "https://images.unsplash.com/photo-1590556409324-aa1d726e5c3c?auto=format&fit=crop&w=1080",
+            title: "TEST IMAGE 3",
+            text: "Nous allons pouvoir reconnecter Google Sheet juste après."
         }
-    }
+    ];
 
-    function runSlideshow() {
-        var slide = slides[currentIndex];
+    var index = 0;
+
+    function nextSlide() {
+        var slide = demoSlides[index];
         
-        var bg = document.getElementById('background');
-        var title = document.getElementById('main-title');
-        var ticker = document.getElementById('scrolling-text');
-
-        bg.style.backgroundImage = "url('" + slide.img + "')";
-        title.innerHTML = slide.title;
-        ticker.innerHTML = slide.text;
-
-        // Reset animation (Astuce compatible vieux JS)
+        // Changer l'image
+        document.getElementById("bg-image").style.backgroundImage = "url('" + slide.img + "')";
+        
+        // Changer le titre
+        document.getElementById("title").innerText = slide.title;
+        
+        // Changer le texte défilant (Reset animation trick)
+        var ticker = document.getElementById("scrolling-text");
+        ticker.innerText = slide.text;
         ticker.style.animation = 'none';
-        ticker.offsetHeight; /* trigger reflow */
-        ticker.style.animation = null; 
+        ticker.offsetHeight; /* hack pour relancer l'anim */
+        ticker.style.animation = "scroll 15s linear infinite";
 
-        currentIndex++;
-        if (currentIndex >= slides.length) {
-            currentIndex = 0;
-            // On recharge les données à la fin de la boucle pour les mises à jour
-            // Mais on attend la fin du timer de la dernière slide
-            setTimeout(function() { loadData(); }, slide.time); 
-        } else {
-            setTimeout(runSlideshow, slide.time);
-        }
+        // Passer à la suivante après 5 secondes
+        index++;
+        if (index >= demoSlides.length) index = 0;
+        setTimeout(nextSlide, 5000);
     }
 
-    function showError(msg) {
-        var errBox = document.getElementById('error-msg');
-        errBox.style.display = 'block';
-        errBox.innerHTML = msg;
-    }
-
-    // Démarrage
-    loadData();
+    // Lancer le diaporama
+    nextSlide();
 
 </script>
+
 </body>
 </html>
