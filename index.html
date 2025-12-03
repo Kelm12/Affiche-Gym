@@ -78,7 +78,7 @@
     // =================================================================
     
     // 👇 COLLE TON LIEN CSV GOOGLE SHEET ICI 👇
-    var SHEET_URL = 'TON_LIEN_CSV_ICI'; 
+    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv'; 
 
     // =================================================================
 
@@ -108,3 +108,92 @@
         xhr.open("GET", SHEET_URL + "?t=" + new Date().getTime(), true);
         xhr.send();
     }
+
+    function parseCSV(text) {
+        var rows = text.split('\n');
+        slides = [];
+        
+        for (var i = 1; i < rows.length; i++) {
+            var row = rows[i];
+            var cols = row.split(',');
+            
+            if (cols.length >= 4) {
+                // Nettoyage des données
+                var urlClean = cols[0].replace(/"/g, '').trim();
+                var titleClean = cols[1].replace(/"/g, '').trim();
+                var textClean = cols[2].replace(/"/g, '').trim();
+                var timeClean = parseInt(cols[3]);
+
+                if (urlClean.length > 5 && !isNaN(timeClean)) {
+                    slides.push({
+                        url: urlClean,
+                        title: titleClean,
+                        text: textClean,
+                        time: timeClean * 1000
+                    });
+                }
+            }
+        }
+
+        if (slides.length > 0) {
+            runSlideshow();
+        } else {
+            showError("Tableau vide ou erreur de virgules.");
+        }
+    }
+
+    function runSlideshow() {
+        var slide = slides[currentIndex];
+        
+        var imgDiv = document.getElementById('bg-image');
+        var vidTag = document.getElementById('bg-video');
+        
+        // 1. Mise à jour Textes
+        document.getElementById('main-title').innerText = slide.title;
+        var ticker = document.getElementById('scrolling-text');
+        ticker.innerText = slide.text;
+        
+        // Reset animation
+        ticker.style.animation = 'none';
+        ticker.offsetHeight; 
+        ticker.style.animation = "scroll 15s linear infinite";
+
+        // 2. Gestion Média (Simple : MP4 ou Image)
+        if (slide.url.indexOf('.mp4') !== -1) {
+            // --- C'EST UNE VIDÉO ---
+            imgDiv.style.display = 'none';
+            vidTag.style.display = 'block';
+            vidTag.src = slide.url;
+            vidTag.muted = true; // Obligatoire
+            vidTag.play().catch(function(e){ console.log("Erreur lecture: ", e); });
+        } else {
+            // --- C'EST UNE IMAGE ---
+            vidTag.pause();
+            vidTag.style.display = 'none';
+            imgDiv.style.display = 'block';
+            imgDiv.style.backgroundImage = "url('" + slide.url + "')";
+        }
+
+        // 3. Boucle
+        currentIndex++;
+        if (currentIndex >= slides.length) {
+            currentIndex = 0;
+            // On recharge le CSV à la fin de la boucle
+            setTimeout(function() { loadData(); }, slide.time);
+        } else {
+            setTimeout(runSlideshow, slide.time);
+        }
+    }
+
+    function showError(msg) {
+        var d = document.getElementById('debug');
+        d.style.display = 'block';
+        d.innerHTML = msg;
+    }
+
+    // Démarrage
+    init();
+
+</script>
+</body>
+</html>
