@@ -2,109 +2,157 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Debug Mode - Gym</title>
+    <title>Gym TV - Mode Compatible</title>
     <style>
-        body { background: #000; color: white; font-family: sans-serif; padding: 20px; }
-        #debug-console { color: red; font-size: 20px; background: #222; padding: 20px; border: 1px solid red; }
-        #background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background-size: cover; background-position: center; }
-        #main-title { position: absolute; top: 20%; width: 100%; text-align: center; font-size: 4em; text-shadow: 2px 2px 4px #000; }
-        .ticker-wrap { position: absolute; bottom: 0; width: 100%; height: 60px; background: #D32F2F; overflow: hidden; }
-        .ticker-item { display: inline-block; padding-left: 100%; animation: ticker 15s linear infinite; font-size: 2em; line-height: 60px; white-space: nowrap; }
-        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: Arial, sans-serif; }
+        
+        /* IMAGE DE FOND */
+        #background {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover; background-position: center;
+            background-repeat: no-repeat;
+            transition: opacity 1s; /* Animation simple */
+        }
+
+        /* TITRE */
+        #main-title {
+            position: absolute; top: 20%; left: 0; width: 100%;
+            text-align: center; color: white; 
+            font-size: 60px; /* Taille fixe pour éviter les bugs TV */
+            font-weight: bold;
+            text-shadow: 3px 3px 5px #000;
+            background: rgba(0,0,0,0.5); padding: 20px 0;
+        }
+
+        /* BANDEAU DEFILANT */
+        .ticker-wrap {
+            position: absolute; bottom: 0; width: 100%; height: 80px;
+            background-color: #D32F2F; overflow: hidden;
+            border-top: 2px solid white;
+        }
+        .ticker-item {
+            position: absolute; top: 15px;
+            white-space: nowrap;
+            color: white; font-size: 40px; font-weight: bold;
+            /* Animation compatible vieux navigateurs */
+            -webkit-animation: ticker 20s linear infinite;
+            animation: ticker 20s linear infinite;
+            left: 100%; /* Départ hors écran */
+        }
+
+        /* Animation standard et Webkit (pour vieilles TV) */
+        @-webkit-keyframes ticker { 0% { -webkit-transform: translate3d(0, 0, 0); left: 100%; } 100% { -webkit-transform: translate3d(-100%, 0, 0); left: -100%; } }
+        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); left: 100%; } 100% { transform: translate3d(-100%, 0, 0); left: -150%; } }
     </style>
 </head>
 <body>
 
-<div id="background"></div>
-<div id="main-title">Chargement...</div>
-<div class="ticker-wrap"><div class="ticker-item" id="ticker"></div></div>
-
-<div id="debug-console" style="display:none;"></div>
+    <div id="background"></div>
+    <div id="main-title">Chargement...</div>
+    <div class="ticker-wrap">
+        <div class="ticker-item" id="scrolling-text">...</div>
+    </div>
+    
+    <div id="error-msg" style="color:red; background:white; font-size:20px; position:absolute; top:0; z-index:999; display:none;"></div>
 
 <script>
-    // --- COLLE TON LIEN CSV JUSTE EN DESSOUS ---
-    const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv'; 
-    // ------------------------------------------
+    // --- METS TON LIEN CSV ICI ---
+    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv'; 
+    // -----------------------------
 
-    function logError(msg) {
-        const consoleDiv = document.getElementById('debug-console');
-        consoleDiv.style.display = 'block';
-        consoleDiv.innerHTML += "<p>" + msg + "</p>";
+    var slides = [];
+    var currentIndex = 0;
+
+    // Fonction "Vieux Mode" pour charger les données (remplace fetch)
+    function loadData() {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    parseData(xhr.responseText);
+                } else {
+                    showError("Erreur chargement: " + xhr.status);
+                }
+            }
+        };
+        xhr.open("GET", SHEET_URL + "?t=" + new Date().getTime(), true); // Anti-cache automatique
+        xhr.send();
     }
 
-    async function start() {
+    function parseData(textData) {
         try {
-            // 1. Test du lien
-            if (SHEET_URL.includes('TON_LIEN_CSV')) {
-                throw new Error("Tu n'as pas remplacé le lien SHEET_URL dans le code !");
-            }
-
-            const response = await fetch(SHEET_URL);
+            var rows = textData.split('\n');
+            slides = []; // Reset
             
-            // 2. Test de la connexion
-            if (!response.ok) {
-                throw new Error("Impossible d'accéder au fichier Google (Erreur " + response.status + "). Vérifie que tu as bien fait 'Publier sur le web'.");
-            }
-
-            const data = await response.text();
-            
-            // 3. Test du contenu
-            if (data.includes("<!DOCTYPE html>") || data.includes("<html")) {
-                throw new Error("Le lien renvoie une page web et pas un CSV. Vérifie que tu as bien choisi format CSV dans Google Sheets.");
-            }
-
-            const rows = data.split('\n').slice(1); // Enlève la ligne de titre
-            
-            if (rows.length === 0) {
-                throw new Error("Le fichier CSV semble vide.");
-            }
-
-            // Parsing simple (Attention aux virgules !)
-            let slides = rows.map((row, index) => {
-                // On essaie de séparer par virgule
-                const cols = row.split(',');
-                if (cols.length < 4) return null; // Ligne invalide
+            // On commence à i=1 pour sauter le titre
+            for (var i = 1; i < rows.length; i++) {
+                var row = rows[i];
+                // Séparation simple par virgule
+                var cols = row.split(',');
                 
-                return {
-                    img: cols[0].trim(),
-                    title: cols[1].trim(),
-                    text: cols[2].trim(),
-                    time: parseInt(cols[3]) * 1000
-                };
-            }).filter(s => s !== null);
+                if (cols.length >= 4) {
+                    var imgClean = cols[0].replace(/"/g, '').trim();
+                    var titleClean = cols[1].replace(/"/g, '').trim();
+                    var textClean = cols[2].replace(/"/g, '').trim();
+                    var timeClean = parseInt(cols[3]);
 
-            if (slides.length === 0) {
-                throw new Error("Aucune ligne valide trouvée. Vérifie tes virgules !");
+                    if (imgClean && !isNaN(timeClean)) {
+                        slides.push({
+                            img: imgClean,
+                            title: titleClean,
+                            text: textClean,
+                            time: timeClean * 1000
+                        });
+                    }
+                }
             }
 
-            // Si tout est OK, on lance l'affichage
-            document.getElementById('debug-console').style.display = 'none';
-            let currentIndex = 0;
-
-            function showSlide() {
-                const s = slides[currentIndex];
-                document.getElementById('background').style.backgroundImage = `url(${s.img})`;
-                document.getElementById('main-title').innerText = s.title;
-                
-                const ticker = document.getElementById('ticker');
-                ticker.innerText = s.text;
-                // Reset animation
-                ticker.style.animation = 'none';
-                ticker.offsetHeight; 
-                ticker.style.animation = null;
-
-                currentIndex = (currentIndex + 1) % slides.length;
-                setTimeout(showSlide, s.time || 5000);
+            if (slides.length > 0) {
+                runSlideshow();
+            } else {
+                showError("Tableau vide ou mal formaté");
             }
-            showSlide();
-
-        } catch (err) {
-            document.getElementById('main-title').innerText = "ERREUR";
-            logError("❌ " + err.message);
+        } catch (e) {
+            showError("Erreur lecture: " + e.message);
         }
     }
 
-    start();
+    function runSlideshow() {
+        var slide = slides[currentIndex];
+        
+        var bg = document.getElementById('background');
+        var title = document.getElementById('main-title');
+        var ticker = document.getElementById('scrolling-text');
+
+        bg.style.backgroundImage = "url('" + slide.img + "')";
+        title.innerHTML = slide.title;
+        ticker.innerHTML = slide.text;
+
+        // Reset animation (Astuce compatible vieux JS)
+        ticker.style.animation = 'none';
+        ticker.offsetHeight; /* trigger reflow */
+        ticker.style.animation = null; 
+
+        currentIndex++;
+        if (currentIndex >= slides.length) {
+            currentIndex = 0;
+            // On recharge les données à la fin de la boucle pour les mises à jour
+            // Mais on attend la fin du timer de la dernière slide
+            setTimeout(function() { loadData(); }, slide.time); 
+        } else {
+            setTimeout(runSlideshow, slide.time);
+        }
+    }
+
+    function showError(msg) {
+        var errBox = document.getElementById('error-msg');
+        errBox.style.display = 'block';
+        errBox.innerHTML = msg;
+    }
+
+    // Démarrage
+    loadData();
+
 </script>
 </body>
 </html>
