@@ -78,7 +78,7 @@
     // =================================================================
     
     // 👇 COLLE TON LIEN CSV GOOGLE SHEET ICI 👇
-    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv'; 
+    var SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?output=csv'; 
 
     // =================================================================
 
@@ -86,7 +86,7 @@
     var currentIndex = 0;
 
     function init() {
-        if (SHEET_URL.indexOf('https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?gid=1855203844&single=true&output=csv') !== -1) {
+        if (SHEET_URL.indexOf('https://docs.google.com/spreadsheets/d/e/2PACX-1vS3DKkK7eA4ncA6o7H8Xo4o8MeExhAWXfR_8qaW5MV9GmKBabIfVQZAwr_6HOeC36e821ynssLZOjDQ/pub?output=csv') !== -1) {
             showError("ERREUR : Tu as oublié de coller le lien CSV dans le fichier index.html !");
             return;
         }
